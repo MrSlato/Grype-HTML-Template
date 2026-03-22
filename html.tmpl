@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{- $TargetName := "Unknown Target" -}}
+    {{- if .Source -}}
+        {{- if eq .Source.Type "image" -}}
+            {{- $TargetName = .Source.Target.UserInput -}}
+        {{- else if eq .Source.Type "directory" -}}
+            {{- $TargetName = .Source.Target -}}
+        {{- else if eq .Source.Type "file" -}}
+            {{- $TargetName = .Source.Target -}}
+        {{- end -}}
+    {{- end -}}
+    
+    <meta charset="UTF-8">
+    <title>{{ $TargetName }} - Security Scan</title>
+
+    <meta name="author" content="MrSlato | based onOnceUponALoop">
+    <meta name="version" content="1.0.0">
+
+    <link href="https://cdn.datatables.net/v/dt/jq-3.7.0/jszip-3.10.1/dt-2.0.3/b-3.0.1/b-html5-3.0.1/b-print-3.0.1/r-3.0.1/rg-1.5.0/datatables.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/v/dt/jq-3.7.0/jszip-3.10.1/dt-2.0.3/b-3.0.1/b-html5-3.0.1/b-print-3.0.1/r-3.0.1/rg-1.5.0/datatables.min.js"></script>
+
+    <style>
+        :root {
+            --bg-body: #121212;
+            --bg-container: #1e1e1e;
+            --bg-element: #252526;
+            --bg-hover: #2d2d30;
+            --bg-header: #2c313c;
+            --text-main: #e0e0e0;
+            --text-muted: #aaaaaa;
+            --border-color: #333333;
+            --accent-blue: #3794ff;
+            --accent-blue-hover: #1e7bed;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+        }
+
+        .main-container {
+            width: 95%;
+            max-width: 1500px;
+            background-color: var(--bg-container);
+            padding: 20px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            margin: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            background-color: var(--bg-header);
+            border: 1px solid var(--border-color);
+        }
+
+        .heading-left, .heading-right {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .heading-right {
+            align-items: flex-end;
+            padding-right: 10px;
+        }
+
+        .heading-right img {
+            width: 80px;
+            height: auto;
+            filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5));
+        }
+
+        .heading-left h1, .heading-left p {
+            margin: 4px 0;
+            padding-left: 10px;
+        }
+
+        .heading-left h1 {
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+
+        .risk-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+
+        .matrix-details {
+            background-color: var(--bg-element);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .matrix-details h3 {
+            margin-top: 0;
+            color: var(--accent-blue);
+        }
+
+        .severity-info {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 15px;
+            background-color: var(--bg-element);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .severity-box {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            margin: 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+            filter: brightness(0.9);
+        }
+
+        .severity-box:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .severity-box.active {
+            border: 2px solid var(--text-main);
+            filter: brightness(1.1);
+        }
+
+        .severity-title {
+            font-size: 0.9em;
+            font-weight: bold;
+            position: absolute;
+            bottom: 12px;
+            width: 100%;
+            color: rgba(255, 255, 255, 0.9);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .severity-count {
+            font-size: 3.5em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #fff;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1;
+        }
+
+        .unfixed-count {
+            font-size: 0.25em;
+            font-weight: normal;
+            opacity: 0.9;
+            margin-top: 8px;
+            text-shadow: none;
+        }
+
+        #kev-box { background-color: #8b0000; }
+        #critical { background-color: #d9534f; }
+        #high { background-color: #f0ad4e; }
+        #medium { background-color: #5bc0de; }
+        #low { background-color: #5cb85c; }
+        #unknown { background-color: #6c757d; }
+
+        .dataTables_wrapper {
+            background: var(--bg-element);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        .dt-layout-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .dataTables_filter label {
+            color: var(--text-main);
+            font-weight: bold;
+        }
+
+        .dataTables_filter input {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+
+        .dataTables_length select {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .dataTables_info, .paginate_button {
+            color: var(--text-muted) !important;
+        }
+
+        .button, .dt-button {
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white !important;
+            background-color: var(--accent-blue) !important;
+            border-radius: 6px !important;
+            border: none !important;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-left: 10px;
+        }
+
+        .button:hover, .dt-button:hover {
+            background-color: var(--accent-blue-hover) !important;
+        }
+
+        table.dataTable {
+            width: 100% !important;
+            border-collapse: collapse;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        table.dataTable thead th {
+            background-color: var(--bg-hover);
+            border-bottom: 2px solid var(--border-color) !important;
+            padding: 12px 15px;
+            color: #ffffff;
+        }
+
+        table.dataTable tbody tr {
+            background-color: transparent !important;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        table.dataTable tbody tr:hover {
+            background-color: var(--bg-hover) !important;
+        }
+
+        table.dataTable tbody td {
+            padding: 12px 15px;
+            border-top: none;
+        }
+
+        tr.dtrg-group td {
+            background-color: #333945 !important;
+            color: #ffffff !important;
+            font-size: 1.1em;
+            padding: 10px 15px;
+            border-top: 2px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .fixed-in ul, .loc-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .loc-path {
+            word-break: break-all; 
+            font-size: 0.85em; 
+            margin-bottom: 4px;
+            color: #cccccc;
+        }
+
+        .desc-container {
+            margin-bottom: 15px;
+        }
+
+        a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .severity-pill, .state-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.4);
+            font-size: 0.85em;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .critical { background-color: #d9534f; }
+        .high { background-color: #f0ad4e; }
+        .medium { background-color: #5bc0de; }
+        .low { background-color: #5cb85c; }
+        .unknown { background-color: #6c757d; }
+
+        .fixed { background-color: #5cb85c; }
+        .not-fixed { background-color: #d9534f; }
+        .wont-fix { background-color: #f0ad4e; }
+    </style>
+</head>
+
+{{- $FilteredMatches := list }}
+{{- range $vuln := .Matches }}
+    {{- if or (eq $vuln.Vulnerability.Severity "Critical") (eq $vuln.Vulnerability.Severity "High") (eq $vuln.Vulnerability.Severity "Medium") (eq $vuln.Vulnerability.Severity "Low") (eq $vuln.Vulnerability.Severity "Unknown") }}
+        {{- $FilteredMatches = append $FilteredMatches $vuln }}
+    {{- end }}
+{{- end }}
+
+<body>
+    <div class="main-container">
+        <div class="heading">
+            <div class="heading-left">
+                <h1>Security Scan: {{ $TargetName }}</h1>
+                <p><strong>Type:</strong> {{ .Source.Type }}</p>
+                <p><strong>Date:</strong> <span id="dateElement">{{.Descriptor.Timestamp}}</span></p>
+            </div>
+            <div class="heading-right">
+                <img id="grypeLogo" src="https://user-images.githubusercontent.com/5199289/136855393-d0a9eef9-ccf1-4e2b-9d7c-7aad16a567e5.png" alt="Grype Logo">
+            </div>
+        </div>
+
+        <div id="riskBanner" class="risk-banner" style="background-color: #6c757d;">
+            <div>
+                <h2 style="margin:0;">Overall Risk: <span id="riskLevelText">Calculating...</span></h2>
+                <div style="font-size: 1.1em; margin-top: 5px;" id="riskRecommendation">Recommendation: Calculating...</div>
+                <div style="font-size: 0.9em; margin-top: 5px; opacity: 0.9;">Total Score: <span id="riskScoreValue">0</span></div>
+            </div>
+            <div>
+                <button id="toggleMatrixBtn" class="button" style="background-color: rgba(255,255,255,0.2); color: white;">Show Methodology</button>
+            </div>
+        </div>
+
+        <div id="riskMatrixDetails" class="matrix-details" style="display: none;">
+            <h3>Risk Matrix Methodology</h3>
+            <p>This system evaluates software security by weighting vulnerability severity and the availability of fixes. Each vulnerability is assigned a base score:</p>
+            <p><strong>Critical (10), High (5), Medium (2), Low (1)</strong></p>
+            <p>If a fix is available, the score for that item is reduced by 50%. Vulnerabilities without a fix retain their full value.</p>
+            
+            <p><strong>Circuit Breakers</strong></p>
+            <p>1. Any vulnerability listed in the CISA KEV catalog automatically classifies the software as Extreme Risk.<br>
+               2. Exceeding a threshold of 3 Criticals or 8 Highs automatically classifies the software as High Risk, regardless of the total score.</p>
+            
+            <p><strong>Recommendations</strong></p>
+            <p><strong>0-10 (Low):</strong> Approve.<br>
+               <strong>11-25 (Medium):</strong> Monitor or schedule patches.<br>
+               <strong>26-50 (High):</strong> Manual review or risk waiver required.<br>
+               <strong>51+ (Extreme):</strong> Deny installation.</p>
+        </div>
+        
+        <div class="severity-info">
+            <div class="severity-box" id="kev-box">
+                <div class="severity-title">Exploited (KEV)</div>
+                <div class="severity-count">
+                    <span id="kevCount">0</span>
+                    <span class="unfixed-count" style="visibility: hidden;">(Placeholder)</span>
+                </div>
+            </div>
+            <div class="severity-box" id="critical">
+                <div class="severity-title">Critical</div>
+                <div class="severity-count">
+                    <span id="criticalCount">0</span>
+                    <span class="unfixed-count" id="criticalUnfixed">(0 not fixed)</span>
+                </div>
+            </div>
+            <div class="severity-box" id="high">
+                <div class="severity-title">High</div>
+                <div class="severity-count">
+                    <span id="highCount">0</span>
+                    <span class="unfixed-count" id="highUnfixed">(0 not fixed)</span>
+                </div>
+            </div>
+            <div class="severity-box" id="medium">
+                <div class="severity-title">Medium</div>
+                <div class="severity-count">
+                    <span id="mediumCount">0</span>
+                    <span class="unfixed-count" id="mediumUnfixed">(0 not fixed)</span>
+                </div>
+            </div>
+            <div class="severity-box" id="low">
+                <div class="severity-title">Low</div>
+                <div class="severity-count">
+                    <span id="lowCount">0</span>
+                    <span class="unfixed-count" id="lowUnfixed">(0 not fixed)</span>
+                </div>
+            </div>
+            <div class="severity-box" id="unknown">
+                <div class="severity-title">Unknown</div>
+                <div class="severity-count">
+                    <span id="unknownCount">0</span>
+                    <span class="unfixed-count" id="unknownUnfixed">(0 not fixed)</span>
+                </div>
+            </div>
+        </div>
+
+        <table id="vulnerabilityTable" class="display" style="width:100%">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Version</th>
+                    <th>Type</th>
+                    <th>Vulnerability</th>
+                    <th>Severity</th>
+                    <th>Details</th>
+                    <th>State</th>
+                    <th>Fixed In</th>
+                    <th>KEV</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{- range $FilteredMatches }}
+                <tr>
+                    <td>{{.Artifact.Name}}</td>
+                    <td>{{.Artifact.Version}}</td>
+                    <td>{{.Artifact.Type}}</td>
+                    <td>
+                        <a href="{{.Vulnerability.DataSource}}" target="_blank" rel="noopener noreferrer">{{.Vulnerability.ID}}</a>
+                    </td>
+                    <td>{{.Vulnerability.Severity}}</td>
+                    <td>
+                        <div class="desc-container">
+                            <strong>Description:</strong><br>
+                            {{html .Vulnerability.Description}}
+                        </div>
+                        <div>
+                            <strong>Locations:</strong><br>
+                            {{- if .Artifact.Locations }}
+                                <ul class="loc-list">
+                                {{- range .Artifact.Locations }}
+                                    <li class="loc-path">{{ .Path }}</li>
+                                {{- end }}
+                                </ul>
+                            {{- else }}
+                                N/A
+                            {{- end }}
+                        </div>
+                    </td>
+                    <td>{{.Vulnerability.Fix.State}}</td>
+                    <td>
+                        {{- if .Vulnerability.Fix.Versions }}
+                        <ul class="fixed-in">
+                            {{- range .Vulnerability.Fix.Versions }}
+                            <li>{{ . }}</li>
+                            {{- end }}
+                        </ul>
+                        {{- else }}
+                        N/A
+                        {{- end }}
+                    </td>
+                    <td>
+                        {{- $isKEV := "No" -}}
+                        {{- if .Vulnerability.KnownExploited -}}
+                            {{- $isKEV = "Yes" -}}
+                        {{- end -}}
+                        {{- $isKEV -}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let pdfLogoBase64 = null;
+
+        let reportConfig = {
+            title: "Vulnerability Report",
+            org: "My Organisation",
+            author: "Security Team",
+            filename: "Grype_Report",
+            counts: {},
+            risk: {}
+        };
+
+        document.addEventListener("DOMContentLoaded", function () {
+            prettyTimestamp();
+            deduplicateAndCount();
+            loadPdfLogo();
+            
+            // Methodology Toggle
+            document.getElementById('toggleMatrixBtn').addEventListener('click', function() {
+                var details = document.getElementById('riskMatrixDetails');
+                if (details.style.display === 'none') {
+                    details.style.display = 'block';
+                    this.textContent = 'Hide Methodology';
+                } else {
+                    details.style.display = 'none';
+                    this.textContent = 'Show Methodology';
+                }
+            });
+
+            $.fn.dataTable.ext.type.order['severity-pre'] = function (data) {
+                var text = data.replace(/<[^>]*>?/gm, '').trim().toLowerCase();
+                switch (text) {
+                    case 'critical': return 1;
+                    case 'high': return 2;
+                    case 'medium': return 3;
+                    case 'low': return 4;
+                    case 'unknown': return 5;
+                    default: return 6;
+                }
+            };
+
+            initializeDataTable();
+        });
+
+        // Loads a separate instance of the image with crossOrigin to generate the Base64 string for PDF
+        function loadPdfLogo() {
+            var img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = function() {
+                try {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    canvas.getContext('2d').drawImage(img, 0, 0);
+                    pdfLogoBase64 = canvas.toDataURL('image/png');
+                } catch(e) {
+                    console.warn("Could not generate Base64 logo for PDF", e);
+                }
+            };
+            img.onerror = function(e) {
+                console.warn("Error loading image for PDF", e);
+            };
+            img.src = "https://user-images.githubusercontent.com/5199289/136855393-d0a9eef9-ccf1-4e2b-9d7c-7aad16a567e5.png";
+        }
+
+        function prettyTimestamp() {
+            var dateElement = document.getElementById("dateElement");
+            if (!dateElement || !dateElement.textContent.trim()) return;
+            
+            var date = new Date(dateElement.textContent);
+            var formattedDate = date.toLocaleDateString("en-AU", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+            });
+
+            var formattedTime = date.toLocaleTimeString("en-AU", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+            });
+
+            dateElement.textContent = formattedDate + " at " + formattedTime;
+        }
+
+        function deduplicateAndCount() {
+            var seen = new Map();
+            var counts = { 
+                critical: 0, high: 0, medium: 0, low: 0, unknown: 0, kev: 0,
+                criticalUnfixed: 0, highUnfixed: 0, mediumUnfixed: 0, lowUnfixed: 0, unknownUnfixed: 0
+            };
+            
+            var tbody = document.querySelector('#vulnerabilityTable tbody');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.forEach(function(row) {
+                var name = row.cells[0].textContent.trim();
+                var version = row.cells[1].textContent.trim();
+                var cve = row.cells[3].textContent.trim();
+                var severity = row.cells[4].textContent.trim().toLowerCase();
+                var state = row.cells[6].textContent.trim().toLowerCase();
+                var isKev = row.cells[8].textContent.trim();
+                
+                var sig = name + '|' + version + '|' + cve;
+
+                if (seen.has(sig)) {
+                    var existingRow = seen.get(sig);
+                    var existingLocList = existingRow.cells[5].querySelector('.loc-list');
+                    var newLocList = row.cells[5].querySelector('.loc-list');
+                    
+                    if (existingLocList && newLocList) {
+                        var newLocs = Array.from(newLocList.querySelectorAll('.loc-path')).map(el => el.textContent);
+                        var oldLocs = Array.from(existingLocList.querySelectorAll('.loc-path')).map(el => el.textContent);
+                        
+                        newLocs.forEach(loc => {
+                            if (!oldLocs.includes(loc) && loc !== 'N/A') {
+                                var li = document.createElement('li');
+                                li.className = 'loc-path';
+                                li.textContent = loc;
+                                existingLocList.appendChild(li);
+                                oldLocs.push(loc);
+                            }
+                        });
+                    } else if (!existingLocList && newLocList) {
+                        // Fallback if the first matching row had no locations, but this one does
+                        var locDiv = existingRow.cells[5].children[1];
+                        if (locDiv) {
+                            locDiv.innerHTML = '<strong>Locations:</strong><br><ul class="loc-list">' + newLocList.innerHTML + '</ul>';
+                        }
+                    }
+                    row.remove(); 
+                } else {
+                    seen.set(sig, row);
+                    
+                    if (counts[severity] !== undefined) {
+                        counts[severity]++;
+                        if (state !== 'fixed') {
+                            counts[severity + 'Unfixed']++;
+                        }
+                    } else {
+                        counts.unknown++;
+                        if (state !== 'fixed') {
+                            counts.unknownUnfixed++;
+                        }
+                    }
+                    if (isKev === 'Yes') {
+                        counts.kev++;
+                    }
+                }
+            });
+
+            document.getElementById('criticalCount').textContent = counts.critical;
+            document.getElementById('criticalUnfixed').textContent = '(' + counts.criticalUnfixed + ' not fixed)';
+            
+            document.getElementById('highCount').textContent = counts.high;
+            document.getElementById('highUnfixed').textContent = '(' + counts.highUnfixed + ' not fixed)';
+            
+            document.getElementById('mediumCount').textContent = counts.medium;
+            document.getElementById('mediumUnfixed').textContent = '(' + counts.mediumUnfixed + ' not fixed)';
+            
+            document.getElementById('lowCount').textContent = counts.low;
+            document.getElementById('lowUnfixed').textContent = '(' + counts.lowUnfixed + ' not fixed)';
+            
+            document.getElementById('unknownCount').textContent = counts.unknown;
+            document.getElementById('unknownUnfixed').textContent = '(' + counts.unknownUnfixed + ' not fixed)';
+            
+            document.getElementById('kevCount').textContent = counts.kev;
+
+            // --- Risk Calculation Logic ---
+            var fixedCriticals = counts.critical - counts.criticalUnfixed;
+            var fixedHighs = counts.high - counts.highUnfixed;
+            var fixedMediums = counts.medium - counts.mediumUnfixed;
+            var fixedLows = counts.low - counts.lowUnfixed;
+
+            var score = (fixedCriticals * 5) + (counts.criticalUnfixed * 10) +
+                        (fixedHighs * 2.5) + (counts.highUnfixed * 5) +
+                        (fixedMediums * 1) + (counts.mediumUnfixed * 2) +
+                        (fixedLows * 0.5) + (counts.lowUnfixed * 1);
+
+            var riskLevel = "Low";
+            var recommendation = "Approve";
+            var bgColor = "#5cb85c"; // Green
+
+            if (score > 50) {
+                riskLevel = "Extreme";
+                recommendation = "Deny installation";
+                bgColor = "#8b0000";
+            } else if (score > 25) {
+                riskLevel = "High";
+                recommendation = "Manual review or risk waiver required";
+                bgColor = "#d9534f";
+            } else if (score > 10) {
+                riskLevel = "Medium";
+                recommendation = "Monitor or schedule patches";
+                bgColor = "#f0ad4e";
+            }
+
+            var circuitBreaker = "";
+
+            if (counts.critical > 3 || counts.high > 8) {
+                if (riskLevel !== "Extreme" && riskLevel !== "High") {
+                    riskLevel = "High";
+                    recommendation = "Manual review or risk waiver required";
+                    bgColor = "#d9534f";
+                    circuitBreaker = "Threshold breached (>3 Criticals or >8 Highs)";
+                }
+            }
+
+            if (counts.kev > 0) {
+                riskLevel = "Extreme";
+                recommendation = "Deny installation";
+                bgColor = "#8b0000";
+                circuitBreaker = "CISA KEV detected";
+            }
+
+            document.getElementById('riskLevelText').textContent = riskLevel;
+            document.getElementById('riskRecommendation').textContent = "Recommendation: " + recommendation;
+            document.getElementById('riskScoreValue').textContent = score;
+            document.getElementById('riskBanner').style.backgroundColor = bgColor;
+
+            reportConfig.risk = {
+                level: riskLevel,
+                score: score,
+                recommendation: recommendation,
+                color: bgColor,
+                circuitBreaker: circuitBreaker
+            };
+        }
+
+        function initializeDataTable() {
+            var table = $('#vulnerabilityTable').DataTable({
+                responsive: true,
+                order: [[8, 'desc'], [4, 'asc']], 
+                dom: '<"dt-layout-row"<"dt-buttons"B><"dataTables_filter"f>>rt<"dt-layout-row"ip>',
+                buttons: [
+                    {
+                        extend: 'pdfHtml5',
+                        text: 'Export to PDF',
+                        className: 'dt-button',
+                        orientation: 'landscape',
+                        title: '', 
+                        messageTop: '', 
+                        filename: function() { return reportConfig.filename; },
+                        exportOptions: {
+                            columns: [0, 1, 2, 3, 4, 6, 7, 8],
+                            modifier: { search: 'applied', order: 'applied' }
+                        },
+                        action: function (e, dt, node, config) {
+                            node.removeClass('processing dt-button-processing');
+                            
+                            var titleInput = prompt("Enter Report Title (or press Cancel to abort):", "Vulnerability Report");
+                            if (titleInput === null) return;
+
+                            var orgInput = prompt("Enter Organisation Name (or press Cancel to abort):", "My Organisation");
+                            if (orgInput === null) return;
+                            
+                            var authorInput = prompt("Enter Author Name (or press Cancel to abort):", "Security Team");
+                            if (authorInput === null) return;
+
+                            var filenameInput = prompt("Save PDF as (enter file name):", "Grype_Report_" + titleInput.replace(/\s+/g, '_'));
+                            if (filenameInput === null) return;
+                            
+                            reportConfig.title = titleInput;
+                            reportConfig.org = orgInput;
+                            reportConfig.author = authorInput;
+                            reportConfig.filename = filenameInput;
+                            
+                            reportConfig.counts = {
+                                kev: document.getElementById('kevCount').textContent,
+                                criticalNum: document.getElementById('criticalCount').textContent,
+                                criticalUnf: document.getElementById('criticalUnfixed').textContent,
+                                highNum: document.getElementById('highCount').textContent,
+                                highUnf: document.getElementById('highUnfixed').textContent,
+                                mediumNum: document.getElementById('mediumCount').textContent,
+                                mediumUnf: document.getElementById('mediumUnfixed').textContent,
+                                lowNum: document.getElementById('lowCount').textContent,
+                                lowUnf: document.getElementById('lowUnfixed').textContent,
+                                unknownNum: document.getElementById('unknownCount').textContent,
+                                unknownUnf: document.getElementById('unknownUnfixed').textContent
+                            };
+                            
+                            $.fn.dataTable.ext.buttons.pdfHtml5.action.call(this, e, dt, node, config);
+                            
+                            setTimeout(function() {
+                                node.removeClass('processing dt-button-processing');
+                            }, 500);
+                        },
+                        customize: function (doc) {
+                            var now = new Date();
+                            var dateStr = now.toLocaleDateString("en-AU", { 
+                                weekday: "long", year: "numeric", month: "long", day: "numeric" 
+                            }) + " at " + now.toLocaleTimeString("en-AU", {
+                                hour: "2-digit", minute: "2-digit", hour12: true
+                            });
+
+                            var headerContent = {
+                                columns: [
+                                    {
+                                        width: '*',
+                                        text: [
+                                            { text: 'Grype Vulnerability Report for ' + reportConfig.title + '\n', fontSize: 18, bold: true, margin: [0, 0, 0, 5] },
+                                            { text: 'Organisation: ' + reportConfig.org + '\n', fontSize: 12, margin: [0, 0, 0, 2] },
+                                            { text: 'Report prepared by: ' + reportConfig.author + '\n', fontSize: 12, margin: [0, 0, 0, 2] },
+                                            { text: 'Report generated: ' + dateStr, fontSize: 12, margin: [0, 0, 0, 10] }
+                                        ]
+                                    }
+                                ],
+                                margin: [0, 0, 0, 10]
+                            };
+
+                            if (pdfLogoBase64) {
+                                headerContent.columns.push({
+                                    width: 80,
+                                    image: pdfLogoBase64,
+                                    alignment: 'right'
+                                });
+                            }
+
+                            var riskBlock = {
+                                table: {
+                                    widths: ['*'], // Explicitly stretches across available page width
+                                    body: [
+                                        [
+                                            {
+                                                text: [
+                                                    { text: 'Overall Risk: ' + reportConfig.risk.level + '\n', fontSize: 16, bold: true },
+                                                    { text: 'Recommendation: ' + reportConfig.risk.recommendation + '\n', fontSize: 12 },
+                                                    { text: 'Calculated Score: ' + reportConfig.risk.score + (reportConfig.risk.circuitBreaker ? ' (' + reportConfig.risk.circuitBreaker + ')' : ''), fontSize: 10, italics: true }
+                                                ],
+                                                fillColor: reportConfig.risk.color,
+                                                color: 'white',
+                                                margin: [10, 10, 10, 10],
+                                                alignment: 'center' // Fixes the blob issue
+                                            }
+                                        ]
+                                    ]
+                                },
+                                layout: 'noBorders',
+                                margin: [0, 0, 0, 15]
+                            };
+
+                            var summaryBoxes = {
+                                table: {
+                                    widths: ['*', '*', '*', '*', '*', '*'],
+                                    body: [
+                                        [
+                                            { 
+                                                text: [
+                                                    { text: 'KEV\n', bold: true, fontSize: 12 },
+                                                    { text: reportConfig.counts.kev, bold: true, fontSize: 18 }
+                                                ],
+                                                fillColor: '#8b0000', color: 'white', alignment: 'center', margin: [5, 10, 5, 10] 
+                                            },
+                                            { 
+                                                text: [
+                                                    { text: 'Critical\n', bold: true, fontSize: 12 },
+                                                    { text: reportConfig.counts.criticalNum + '\n', bold: true, fontSize: 18 },
+                                                    { text: reportConfig.counts.criticalUnf, fontSize: 9 }
+                                                ],
+                                                fillColor: '#d9534f', color: 'white', alignment: 'center', margin: [5, 10, 5, 10] 
+                                            },
+                                            { 
+                                                text: [
+                                                    { text: 'High\n', bold: true, fontSize: 12 },
+                                                    { text: reportConfig.counts.highNum + '\n', bold: true, fontSize: 18 },
+                                                    { text: reportConfig.counts.highUnf, fontSize: 9 }
+                                                ],
+                                                fillColor: '#f0ad4e', color: 'white', alignment: 'center', margin: [5, 10, 5, 10] 
+                                            },
+                                            { 
+                                                text: [
+                                                    { text: 'Medium\n', bold: true, fontSize: 12 },
+                                                    { text: reportConfig.counts.mediumNum + '\n', bold: true, fontSize: 18 },
+                                                    { text: reportConfig.counts.mediumUnf, fontSize: 9 }
+                                                ],
+                                                fillColor: '#5bc0de', color: 'white', alignment: 'center', margin: [5, 10, 5, 10] 
+                                            },
+                                            { 
+                                                text: [
+                                                    { text: 'Low\n', bold: true, fontSize: 12 },
+                                                    { text: reportConfig.counts.lowNum + '\n', bold: true, fontSize: 18 },
+                                                    { text: reportConfig.counts.lowUnf, fontSize: 9 }
+                                                ],
+                                                fillColor: '#5cb85c', color: 'white', alignment: 'center', margin: [5, 10, 5, 10] 
+                                            },
+                                            { 
+                                                text: [
+                                                    { text: 'Unknown\n', bold: true, fontSize: 12 },
+                                                    { text: reportConfig.counts.unknownNum + '\n', bold: true, fontSize: 18 },
+                                                    { text: reportConfig.counts.unknownUnf, fontSize: 9 }
+                                                ],
+                                                fillColor: '#6c757d', color: 'white', alignment: 'center', margin: [5, 10, 5, 10] 
+                                            }
+                                        ]
+                                    ]
+                                },
+                                layout: 'noBorders',
+                                margin: [0, 0, 0, 20]
+                            };
+
+                            // Fetch DataTables state BEFORE unshifting blocks to ensure correct index mapping
+                            var dt = $('#vulnerabilityTable').DataTable();
+                            var rows = dt.rows({ search: 'applied', order: 'applied' }).data();
+                            var tableContent = doc.content.find(function(c) { return c.table; });
+                            
+                            if (tableContent) {
+                                tableContent.table.widths = ['18%', '10%', '8%', '18%', '10%', '10%', '18%', '8%'];
+    
+                                tableContent.layout = {
+                                    hLineColor: function () { return '#ffffff'; },
+                                    vLineColor: function () { return '#ffffff'; },
+                                    paddingLeft: function() { return 5; },
+                                    paddingRight: function() { return 5; },
+                                    paddingTop: function() { return 5; },
+                                    paddingBottom: function() { return 5; }
+                                };
+    
+                                var tableBody = tableContent.table.body;
+                                var locationAppendix = [];
+                                var locCounter = 1;
+                                var locMap = new Map();
+                                var dataIndex = 0;
+                                
+                                for (var i = 1; i < tableBody.length; i++) {
+                                    var rowCells = tableBody[i];
+                                    
+                                    // Identify grouping row by colspan or length
+                                    if (rowCells.length < 8 || (rowCells[0] && rowCells[0].colSpan)) {
+                                        for (var c = 0; c < rowCells.length; c++) {
+                                            if (rowCells[c]) {
+                                                rowCells[c].fillColor = '#333945';
+                                                rowCells[c].color = 'white';
+                                                rowCells[c].bold = true;
+                                            }
+                                        }
+                                        continue;
+                                    }
+                                    
+                                    var rawData = rows[dataIndex];
+                                    dataIndex++;
+    
+                                    var name = rawData[0];
+                                    var cveHtml = rawData[3];
+                                    var severityText = rawData[4];
+                                    var detailsHtml = rawData[5];
+                                    var stateText = rawData[6];
+                                    var kevText = rawData[8];
+    
+                                    var sevColor = '#6c757d';
+                                    if (severityText === 'Critical') sevColor = '#d9534f';
+                                    else if (severityText === 'High') sevColor = '#f0ad4e';
+                                    else if (severityText === 'Medium') sevColor = '#5bc0de';
+                                    else if (severityText === 'Low') sevColor = '#5cb85c';
+    
+                                    // Apply background colour mapped to severity
+                                    for (var colIdx = 0; colIdx < rowCells.length; colIdx++) {
+                                        if (typeof rowCells[colIdx] !== 'object' || rowCells[colIdx] === null) {
+                                            rowCells[colIdx] = { text: rowCells[colIdx], fillColor: sevColor, color: '#ffffff' };
+                                        } else {
+                                            rowCells[colIdx].fillColor = sevColor;
+                                            rowCells[colIdx].color = '#ffffff';
+                                        }
+                                    }
+    
+                                    var tempDiv = document.createElement('div');
+                                    tempDiv.innerHTML = detailsHtml;
+                                    var locElements = tempDiv.querySelectorAll('.loc-path');
+                                    var locs = Array.from(locElements).map(el => el.textContent.trim()).filter(t => t !== 'N/A' && t !== '').join('\n');
+    
+                                    if (locs) {
+                                        var mapKey = name + '|' + locs;
+                                        if (!locMap.has(mapKey)) {
+                                            locMap.set(mapKey, locCounter);
+                                            locationAppendix.push([ locCounter.toString(), name, locs ]);
+                                            locCounter++;
+                                        }
+                                        var currentSup = locMap.get(mapKey);
+    
+                                        rowCells[0] = {
+                                            text: [
+                                                { text: name },
+                                                { text: currentSup.toString(), sup: true, fontSize: 8, color: '#ffffff', bold: true }
+                                            ],
+                                            fillColor: sevColor,
+                                            color: '#ffffff'
+                                        };
+                                    }
+    
+                                    tempDiv.innerHTML = cveHtml;
+                                    var aTag = tempDiv.querySelector('a');
+                                    if (aTag) {
+                                        var url = aTag.href;
+                                        var cveText = aTag.textContent.trim();
+                                        
+                                        rowCells[3] = {
+                                            text: cveText,
+                                            link: url,
+                                            color: '#ffffff',
+                                            decoration: 'underline',
+                                            fillColor: sevColor,
+                                            bold: true
+                                        };
+                                    }
+    
+                                    rowCells[4] = { text: severityText, fillColor: sevColor, color: '#ffffff', alignment: 'center' };
+    
+                                    if (stateText === 'fixed') {
+                                        rowCells[5] = { text: stateText, fillColor: '#1e7e34', color: '#ffffff', alignment: 'center', bold: true };
+                                    } else if (stateText === 'not-fixed') {
+                                        rowCells[5] = { text: stateText, fillColor: '#bd2130', color: '#ffffff', alignment: 'center', bold: true };
+                                    } else {
+                                        rowCells[5] = { text: stateText, fillColor: sevColor, color: '#ffffff', alignment: 'center' };
+                                    }
+    
+                                    if (kevText === 'Yes') {
+                                        rowCells[7] = { text: kevText, fillColor: '#8b0000', color: '#ffffff', alignment: 'center', bold: true };
+                                    } else {
+                                        rowCells[7] = { text: kevText, fillColor: sevColor, color: '#ffffff', alignment: 'center' };
+                                    }
+                                }
+    
+                                // Build Appendix A
+                                if (locationAppendix.length > 0) {
+                                    doc.content.push({ 
+                                        text: 'Appendix A: File Locations', 
+                                        style: 'header', 
+                                        margin: [0, 30, 0, 10], 
+                                        fontSize: 14, 
+                                        bold: true 
+                                    });
+                                    
+                                    var appTable = {
+                                        headerRows: 1,
+                                        widths: ['5%', '25%', '70%'],
+                                        body: [
+                                            [
+                                                { text: 'Ref', bold: true, fillColor: '#2c313c', color: 'white' },
+                                                { text: 'Artifact Name', bold: true, fillColor: '#2c313c', color: 'white' },
+                                                { text: 'Locations', bold: true, fillColor: '#2c313c', color: 'white' }
+                                            ]
+                                        ]
+                                    };
+    
+                                    locationAppendix.forEach(function(item) {
+                                        appTable.body.push([
+                                            { text: item[0] },
+                                            { text: item[1] },
+                                            { text: item[2], fontSize: 9 }
+                                        ]);
+                                    });
+    
+                                    doc.content.push({
+                                        table: appTable,
+                                        layout: {
+                                            fillColor: function (rowIndex) {
+                                                return (rowIndex % 2 === 0 && rowIndex !== 0) ? '#f4f4f4' : null;
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+
+                            // Append Appendix B: Risk Methodology
+                            doc.content.push({
+                                text: 'Appendix B: Risk Matrix Methodology',
+                                style: 'header',
+                                margin: [0, 30, 0, 10],
+                                fontSize: 14,
+                                bold: true
+                            });
+
+                            doc.content.push({
+                                text: 'The system evaluates software security by weighting vulnerability severity and the availability of fixes. Each vulnerability is assigned a base score: Critical (10), High (5), Medium (2), and Low (1). If a fix is available, the score for that item is reduced by 50%. Vulnerabilities without a fix retain their full value.\n\nCircuit Breakers:\n1. Any vulnerability listed in the CISA KEV catalog automatically classifies the software as Extreme Risk.\n2. Exceeding a threshold of 3 Criticals or 8 Highs automatically classifies the software as High Risk, regardless of the total score.\n\nScore Recommendations:\n0-10 (Low): Approve.\n11-25 (Medium): Monitor or schedule patches.\n26-50 (High): Manual review or risk waiver required.\n51+ (Extreme): Deny installation.',
+                                fontSize: 10,
+                                lineHeight: 1.3
+                            });
+
+                            // Inject visual headers strictly at the end of the script configuration
+                            doc.content.unshift(summaryBoxes);
+                            doc.content.unshift(riskBlock);
+                            doc.content.unshift(headerContent);
+                        }
+                    },
+                    {
+                        text: 'Group by Name & Version',
+                        className: 'dt-button',
+                        action: function (e, dt, node, config) {
+                            var isGrouped = dt.rowGroup().enabled();
+                            if (!isGrouped) {
+                                dt.rowGroup().enable();
+                                dt.order([0, 'asc'], [1, 'asc'], [8, 'desc'], [4, 'asc']);
+                                dt.columns([0, 1, 2]).visible(false); 
+                                this.text('Ungroup Results');
+                                $(node).css('background-color', '#d9534f'); 
+                            } else {
+                                dt.rowGroup().disable();
+                                dt.columns([0, 1, 2]).visible(true); 
+                                dt.order([[8, 'desc'], [4, 'asc']]); 
+                                this.text('Group by Name & Version');
+                                $(node).css('background-color', 'var(--accent-blue)'); 
+                            }
+                            dt.draw();
+                        }
+                    }
+                ],
+                rowGroup: {
+                    dataSrc: function (row) {
+                        return row[0] + ' (v' + row[1] + ') - Type: ' + row[2]; 
+                    },
+                    enable: false 
+                },
+                columnDefs: getColumnDefs(),
+                pageLength: 25
+            });
+
+            setupSeverityClickHandler(table);
+            return table;
+        }
+
+        function getColumnDefs() {
+            return [
+                { targets: 5, className: 'none' }, 
+                {
+                    targets: 4, 
+                    type: 'severity',
+                    render: function (data, type, row) {
+                        if (type === 'display') {
+                            const severityClasses = {
+                                'Critical': 'critical',
+                                'High': 'high',
+                                'Medium': 'medium',
+                                'Low': 'low',
+                                'Unknown': 'unknown'
+                            };
+                            var className = severityClasses[data] || 'unknown';
+                            return '<span class="severity-pill ' + className + '">' + data + '</span>';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    targets: 6, 
+                    render: function (data, type, row) {
+                        if (type === 'display') {
+                            const stateClasses = {
+                                'fixed': 'fixed',
+                                'not-fixed': 'not-fixed',
+                                'unknown': 'unknown',
+                                'wont-fix': 'wont-fix'
+                            };
+                            var className = stateClasses[data] || 'unknown'; 
+                            return '<span class="state-pill ' + className + '">' + data + '</span>';
+                        }
+                        return data;
+                    }
+                },
+                {
+                    targets: 8, 
+                    render: function (data, type, row) {
+                        if (type === 'display') {
+                            if (data === 'Yes') return '<span class="severity-pill critical" style="background-color: #8b0000;">Yes</span>';
+                            if (data === 'No') return '<span class="severity-pill low">No</span>';
+                            return '<span class="state-pill unknown">' + data + '</span>';
+                        }
+                        return data;
+                    }
+                }
+            ];
+        }
+
+        function setupSeverityClickHandler(table) {
+            var currentFilter = '';
+            $('.severity-box').on('click', function () {
+                var boxTitle = $(this).find('.severity-title').text().trim();
+                
+                if (boxTitle === currentFilter) {
+                    table.search('').columns().search('').draw();
+                    currentFilter = '';
+                    $('.severity-box').removeClass('active');
+                    return;
+                }
+
+                $('.severity-box').removeClass('active');
+                $(this).addClass('active');
+                table.search('').columns().search('');
+
+                if (boxTitle === 'Exploited (KEV)') {
+                    table.column(8).search('Yes').draw();
+                } else {
+                    table.column(4).search(boxTitle).draw();
+                }
+
+                currentFilter = boxTitle;
+            });
+        }
+    </script>
+</body>
+
+</html>
